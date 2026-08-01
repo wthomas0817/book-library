@@ -7,8 +7,9 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
     <style>
         body {
             margin: 0;
@@ -22,16 +23,19 @@
 
     <script>
         const { useState, useEffect } = React;
-
+        
+        // ⚠️ REPLACE THESE WITH YOUR FIREBASE CONFIG
+        // Get these from: Firebase Console > Project Settings > Web App
         const firebaseConfig = {
-            apiKey: "AIzaSyBUFTp6iV-X12Hqm16hbyVivXEvsCt69o4",
-            authDomain: "book-library-75aa0.firebaseapp.com",
-            projectId: "book-library-75aa0",
-            storageBucket: "book-library-75aa0.firebasestorage.app",
-            messagingSenderId: "336574387184",
-            appId: "1:336574387184:web:9b800c24cac482771b8335"
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
         };
 
+        // Initialize Firebase
         let db = null;
         try {
             const app = firebase.initializeApp(firebaseConfig);
@@ -56,6 +60,7 @@
             { title: 'Cujo', author: 'Stephen King' },
             { title: 'Christine', author: 'Stephen King' },
             { title: 'Firestarter', author: 'Stephen King' },
+            { title: 'The Dead Zone', author: 'Stephen King' },
             { title: 'Different Seasons', author: 'Stephen King' },
             { title: 'Skeleton Crew', author: 'Stephen King' },
             { title: 'Needful Things', author: 'Stephen King' },
@@ -98,16 +103,22 @@
             
             // The Outsider spinoff / Holly Gibney books
             { title: 'If It Bleeds', author: 'Stephen King' },
+            
+            // Abby Jimenez
             { title: 'The Worst Guy', author: 'Abby Jimenez' },
             { title: 'Just for the Holidays', author: 'Abby Jimenez' },
             { title: 'The Every House', author: 'Abby Jimenez' },
             { title: 'When I\'m Gone', author: 'Abby Jimenez' },
             { title: 'Yours Truly', author: 'Abby Jimenez' },
+            
+            // The Investigators Series
             { title: 'Weather or Not', author: 'A.J. Gnarly' },
             { title: 'Off the Hook', author: 'A.J. Gnarly' },
             { title: 'Take the Plunge', author: 'A.J. Gnarly' },
             { title: 'Double Take', author: 'A.J. Gnarly' },
             { title: 'Wide Awake', author: 'A.J. Gnarly' },
+            
+            // Other Popular Authors
             { title: 'Where the Crawdads Sing', author: 'Delia Owens' },
             { title: 'The Seven Husbands of Evelyn Hugo', author: 'Taylor Jenkins Reid' },
             { title: 'It Ends with Us', author: 'Colleen Hoover' },
@@ -126,6 +137,7 @@
             { title: 'Daisy Jones & The Six', author: 'Taylor Jenkins Reid' },
             { title: 'The Book Woman of Troublesome Creek', author: 'Kim Michele Richardson' },
             { title: 'Tomorrow, and Tomorrow, and Tomorrow', author: 'Gabrielle Zevin' },
+            
             // Dungeon Crawler Carl Series
             { title: 'Dungeon Crawler Carl', author: 'Matt Dinniman' },
             { title: 'Carl\'s Doomsday Scenario', author: 'Matt Dinniman' },
@@ -133,7 +145,7 @@
             { title: 'The Gate of the Feral Gods', author: 'Matt Dinniman' },
             { title: 'The Butcher\'s Masquerade', author: 'Matt Dinniman' },
             { title: 'The Eye of the Bedlam Bride', author: 'Matt Dinniman' },
-                    ];
+        ];
 
         function BookTracker() {
             const [books, setBooks] = useState([]);
@@ -144,11 +156,14 @@
             const [suggestions, setSuggestions] = useState([]);
             const [showSuggestions, setShowSuggestions] = useState(false);
             const [readers, setReaders] = useState([]);
+            const [isWishlistItem, setIsWishlistItem] = useState(false);
+            const [shelf, setShelf] = useState('library');
             const [viewMode, setViewMode] = useState('author');
             const [loading, setLoading] = useState(true);
             const [syncStatus, setSyncStatus] = useState('connecting');
             const FAMILY_MEMBERS = ['Whitney', 'Braden', 'Lorelai'];
 
+            // Load books from Firebase on mount
             useEffect(() => {
                 if (!db) {
                     setLoading(false);
@@ -205,14 +220,28 @@
                             author: author.trim(),
                             addedDate: new Date().toLocaleDateString(),
                             readers: readers,
+                            status: isWishlistItem ? 'wishlist' : 'owned',
                             createdAt: new Date()
                         });
                         setTitle('');
                         setAuthor('');
                         setReaders([]);
+                        setIsWishlistItem(false);
                         setSuggestions([]);
                     } catch (error) {
                         console.error('Error adding book:', error);
+                    }
+                }
+            };
+
+            const moveToLibrary = async (bookId) => {
+                if (db) {
+                    try {
+                        await db.collection('books').doc(bookId).update({
+                            status: 'owned'
+                        });
+                    } catch (error) {
+                        console.error('Error moving book to library:', error);
                     }
                 }
             };
@@ -247,14 +276,15 @@
                 }
             };
 
-            const uniqueAuthors = [...new Set(books.map(b => b.author))].sort();
+            const uniqueAuthors = [...new Set(books.filter(b => (b.status || 'owned') === shelf).map(b => b.author))].sort();
 
             const displayedBooks = books.filter(book => {
+                const matchesShelf = (book.status || 'owned') === shelf;
                 const matchesAuthor = !filterAuthor || book.author === filterAuthor;
                 const matchesSearch = !searchQuery || 
                     book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     book.author.toLowerCase().includes(searchQuery.toLowerCase());
-                return matchesAuthor && matchesSearch;
+                return matchesShelf && matchesAuthor && matchesSearch;
             });
 
             const booksByAuthor = {};
@@ -281,6 +311,7 @@
 
             return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6' },
                 React.createElement('div', { className: 'max-w-4xl mx-auto' },
+                    // Header
                     React.createElement('div', { className: 'mb-8' },
                         React.createElement('h1', { className: 'text-4xl font-bold text-gray-800 mb-2' }, '📚 Family Book Library'),
                         React.createElement('p', { className: 'text-gray-600 mb-2' }, 'Track books you own and find new ones to collect'),
@@ -288,6 +319,7 @@
                             `🔄 ${syncStatus === 'synced' ? 'Synced' : 'Syncing...'}`)
                     ),
 
+                    // Add Book Section
                     React.createElement('div', { className: 'bg-white rounded-lg shadow-lg p-6 mb-6' },
                         React.createElement('h2', { className: 'text-xl font-semibold text-gray-800 mb-4' }, 'Add a Book'),
                         React.createElement('div', { className: 'flex gap-3 flex-wrap' },
@@ -328,6 +360,15 @@
                             }, '➕ Add')
                         ),
                         React.createElement('div', { className: 'mt-4 pt-4 border-t border-gray-200' },
+                            React.createElement('label', { className: 'flex items-center gap-2 cursor-pointer mb-4' },
+                                React.createElement('input', {
+                                    type: 'checkbox',
+                                    checked: isWishlistItem,
+                                    onChange: (e) => setIsWishlistItem(e.target.checked),
+                                    className: 'w-4 h-4 rounded border-gray-300 text-yellow-500 cursor-pointer'
+                                }),
+                                React.createElement('span', { className: 'text-sm font-medium text-gray-700' }, '⭐ This is a wishlist item (we don\'t own it yet)')
+                            ),
                             React.createElement('label', { className: 'block text-sm font-medium text-gray-700 mb-3' }, 'Who has read this book?'),
                             React.createElement('div', { className: 'flex gap-4' },
                                 FAMILY_MEMBERS.map(member =>
@@ -346,6 +387,7 @@
                         React.createElement('p', { className: 'text-xs text-gray-500 mt-2' }, '💡 Tip: Start typing a book title or author name to see suggestions')
                     ),
 
+                    // Stats and Filter
                     React.createElement('div', { className: 'bg-white rounded-lg shadow-lg p-6 mb-6' },
                         React.createElement('div', { className: 'flex flex-col gap-4' },
                             React.createElement('div', { className: 'grid grid-cols-3 gap-4 text-center' },
@@ -388,6 +430,22 @@
                         )
                     ),
 
+                    // Shelf Toggle (Library vs Wishlist)
+                    React.createElement('div', { className: 'bg-white rounded-lg shadow-lg p-6 mb-6' },
+                        React.createElement('label', { className: 'block text-sm font-medium text-gray-700 mb-3' }, 'Shelf:'),
+                        React.createElement('div', { className: 'flex gap-3' },
+                            React.createElement('button', {
+                                onClick: () => setShelf('library'),
+                                className: `px-4 py-2 rounded-lg font-medium transition ${shelf === 'library' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                            }, `📚 My Library (${books.filter(b => (b.status || 'owned') === 'owned').length})`),
+                            React.createElement('button', {
+                                onClick: () => setShelf('wishlist'),
+                                className: `px-4 py-2 rounded-lg font-medium transition ${shelf === 'wishlist' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`
+                            }, `⭐ Wishlist (${books.filter(b => b.status === 'wishlist').length})`)
+                        )
+                    ),
+
+                    // View Toggle
                     React.createElement('div', { className: 'bg-white rounded-lg shadow-lg p-6 mb-6' },
                         React.createElement('label', { className: 'block text-sm font-medium text-gray-700 mb-3' }, 'View Books By:'),
                         React.createElement('div', { className: 'flex gap-3' },
@@ -402,6 +460,7 @@
                         )
                     ),
 
+                    // Books Display
                     displayedBooks.length === 0 ? React.createElement('div', { className: 'bg-white rounded-lg shadow-lg p-12 text-center' },
                         React.createElement('div', { className: 'text-4xl mb-4' }, '📭'),
                         React.createElement('p', { className: 'text-gray-600 text-lg' },
@@ -422,11 +481,18 @@
                                                     React.createElement('p', { className: 'font-semibold text-gray-800' }, book.title),
                                                     React.createElement('p', { className: 'text-xs text-gray-500' }, `Added ${book.addedDate}`)
                                                 ),
-                                                React.createElement('button', {
-                                                    onClick: () => deleteBook(book.id),
-                                                    className: 'ml-4 p-2 text-red-500 hover:bg-red-50 rounded-lg transition',
-                                                    title: 'Delete book'
-                                                }, '🗑️')
+                                                React.createElement('div', { className: 'flex gap-2 ml-4' },
+                                                    shelf === 'wishlist' && React.createElement('button', {
+                                                        onClick: () => moveToLibrary(book.id),
+                                                        className: 'px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition whitespace-nowrap',
+                                                        title: 'Move to Library'
+                                                    }, '✅ Got it!'),
+                                                    React.createElement('button', {
+                                                        onClick: () => deleteBook(book.id),
+                                                        className: 'p-2 text-red-500 hover:bg-red-50 rounded-lg transition',
+                                                        title: 'Delete book'
+                                                    }, '🗑️')
+                                                )
                                             ),
                                             React.createElement('div', { className: 'mt-3 flex gap-2 flex-wrap' },
                                                 FAMILY_MEMBERS.map(member =>
@@ -466,11 +532,18 @@
                                                     React.createElement('p', { className: 'text-xs text-gray-600' }, `by ${book.author}`),
                                                     React.createElement('p', { className: 'text-xs text-gray-500' }, `Added ${book.addedDate}`)
                                                 ),
-                                                React.createElement('button', {
-                                                    onClick: () => deleteBook(book.id),
-                                                    className: 'ml-4 p-2 text-red-500 hover:bg-red-50 rounded-lg transition',
-                                                    title: 'Delete book'
-                                                }, '🗑️')
+                                                React.createElement('div', { className: 'flex gap-2 ml-4' },
+                                                    shelf === 'wishlist' && React.createElement('button', {
+                                                        onClick: () => moveToLibrary(book.id),
+                                                        className: 'px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition whitespace-nowrap',
+                                                        title: 'Move to Library'
+                                                    }, '✅ Got it!'),
+                                                    React.createElement('button', {
+                                                        onClick: () => deleteBook(book.id),
+                                                        className: 'p-2 text-red-500 hover:bg-red-50 rounded-lg transition',
+                                                        title: 'Delete book'
+                                                    }, '🗑️')
+                                                )
                                             ),
                                             React.createElement('div', { className: 'mt-3 flex gap-2 flex-wrap' },
                                                 FAMILY_MEMBERS.map(m =>
