@@ -97,16 +97,16 @@
                 const timer = setTimeout(async () => {
                     try {
                         const response = await fetch(
-                            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(title)}&maxResults=8`
+                            `https://openlibrary.org/search.json?q=${encodeURIComponent(title)}&limit=8&fields=title,author_name`
                         );
                         const data = await response.json();
 
                         const uniqueSuggestions = [];
                         const seen = new Set();
 
-                        (data.items || []).forEach(item => {
-                            const bookTitle = item.volumeInfo?.title;
-                            const bookAuthor = item.volumeInfo?.authors?.[0];
+                        (data.docs || []).forEach(doc => {
+                            const bookTitle = doc.title;
+                            const bookAuthor = doc.author_name?.[0];
                             if (bookTitle && bookAuthor) {
                                 const key = `${bookTitle}|${bookAuthor}`;
                                 if (!seen.has(key)) {
