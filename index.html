@@ -276,10 +276,10 @@
                 }
             };
 
-            const uniqueAuthors = [...new Set(books.filter(b => (b.status || 'owned') === shelf).map(b => b.author))].sort();
+            const uniqueAuthors = [...new Set(books.filter(b => (b.status || 'owned') === (shelf === 'library' ? 'owned' : 'wishlist')).map(b => b.author))].sort();
 
             const displayedBooks = books.filter(book => {
-                const matchesShelf = (book.status || 'owned') === shelf;
+                const matchesShelf = (book.status || 'owned') === (shelf === 'library' ? 'owned' : 'wishlist');
                 const matchesAuthor = !filterAuthor || book.author === filterAuthor;
                 const matchesSearch = !searchQuery || 
                     book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
